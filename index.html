@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Login & Logbook Punch dan Dies</title>
+  <style>
+    /* (style lengkap dipertahankan dari kode awal kamu) */
+    body { font-family: "Courier New", monospace; background-color: #f4f4f4; padding: 20px; }
+    h1, h2 { text-align: center; font-weight: bold; }
+    .login-box { max-width: 300px; margin: 100px auto; padding: 70px; background: #fff; border-radius: 50px; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
+    .login-box input, .login-box button { width: 100%; padding: 10px; margin-top: 10px; font-family: inherit; font-weight: bold; }
+    .login-box button { background-color: #007bff; color: black; border: none; cursor: pointer; }
+    .login-box button:hover { background-color: #0056b3; }
+    .error { color: red; text-align: center; margin-top: 10px; font-weight: bold; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .logo { display: block; margin: 0 auto 10px auto; max-width: 90px; }
+    label, select { font-size: 16px; font-weight: bold; margin-right: 10px; }
+    table { width: 100%; border-collapse: collapse; background-color: #fff; font-weight: bold; }
+    th, td { border: 2px solid #888; padding: 10px; text-align: center; }
+    th { background-color: #ddd; }
+    input[type="text"], input[type="date"], select { width: 100%; border: none; background-color: transparent; text-align: center; font-weight: bold; padding: 5px; }
+    button { padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; margin-right: 10px; }
+    button:hover { background-color: #0056b3; }
+    #notif { margin-top: 10px; font-size: 14px; color: green; font-weight: bold; }
+  </style>
+
+  <!-- CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <!-- LOGIN FORM -->
+  <div id="loginSection" class="login-box" style="display:none;">
+    <img src="images/rama_transparan.png" alt="Logo Perusahaan" class="logo">
+    <h2>SILAHKAN LOGIN UNTUK PENGISIAN LOGBOOK PUNCH & DIES</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <div id="errorMsg" class="error"></div>
+  </div>
+
+  <!-- LOGBOOK -->
+  <div id="logbookSection" style="display:none;">
+    <img src="images/rama_transparan.png" alt="Logo Perusahaan" class="logo">
+    <h1>LOG-BOOK PEMAKAIAN PUNCH DAN DIES - NBL PRODUKSI</h1>
+
+    <div class="top-bar">
+      <div>
+        <label for="monthSelect">Pilih Bulan:</label>
+        <select id="monthSelect" onchange="loadMonthData()">
+          <option value="Januari">Januari</option>
+          <option value="Februari">Februari</option>
+          <option value="Maret">Maret</option>
+          <option value="April">April</option>
+          <option value="Mei">Mei</option>
+          <option value="Juni">Juni</option>
+          <option value="Juli">Juli</option>
+          <option value="Agustus">Agustus</option>
+          <option value="September">September</option>
+          <option value="Oktober">Oktober</option>
+          <option value="November">November</option>
+          <option value="Desember">Desember</option>
+        </select>
+      </div>
+      <button onclick="logout()" style="background-color: red;">🚪 Logout</button>
+    </div>
+
+    <table id="usageTable">
+      <thead>
+        <tr>
+          <th>Penggunaan Produk</th>
+          <th>Nomor Batch</th>
+          <th>Mesin</th>
+          <th>Tanggal Penggunaan</th>
+          <th>Tanggal Pengembalian</th>
+          <th>ACC SPV</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button onclick="addRow()">Tambah Baris</button>
+    <button onclick="manualSave()">💾 Simpan ke GitHub</button>
+    <button onclick="exportToPDF()">📄 Export PDF</button>
+
+    <div id="notif"></div>
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    // Konfigurasi Login & Password
+    const LOGIN_USER = "admin";
+    const LOGIN_PASS = "1234";
+    const PASSWORD = "22"; // untuk hapus baris
+
+    // Konfigurasi GitHub
+    const github = {
+      token: "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", // Ganti token ini
+      username: "loog-book-app",
+      repo: "ajialidrus",
+      branch: "main",
+      path: "logbook-data"
+    };
+
+    const tableBody = document.querySelector("#usageTable tbody");
+    const monthSelect = document.getElementById("monthSelect");
+    const notif = document.getElementById("notif");
+
+    // Login
+    function login() {
+      const u = document.getElementById("username").value;
+      const p = document.getElementById("password").value;
+      if (u === LOGIN_USER && p === LOGIN_PASS) {
+        localStorage.setItem("loggedIn", "true");
+        showSection();
+      } else {
+        document.getElementById("errorMsg").innerText = "Username atau Password salah.";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("loggedIn");
+      location.reload();
+    }
+
+    function showSection() {
+      if (localStorage.getItem("loggedIn") === "true") {
+        document.getElementById("loginSection").style.display = "none";
+        document.getElementById("logbookSection").style.display = "block";
+        monthSelect.selectedIndex = new Date().getMonth();
+        loadMonthData();
+      } else {
+        document.getElementById("loginSection").style.display = "block";
+        document.getElementById("logbookSection").style.display = "none";
+      }
+    }
+
+    async function loadMonthData() {
+      tableBody.innerHTML = "";
+      const bulan = monthSelect.value;
+      const url = `https://api.github.com/repos/${github.username}/${github.repo}/contents/${github.path}/${bulan}.json?ref=${github.branch}`;
+
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${github.token}`,
+          Accept: "application/vnd.github.v3.raw"
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        data.forEach(item => insertRow(item, false));
+      } else {
+        insertRow(); // belum ada file
+      }
+    }
+
+    function insertRow(data = {}, editable = true) {
+      const row = tableBody.insertRow();
+      const createInput = (type, value, editable) =>
+        `<input type="${type}" value="${value || ""}" ${editable ? "" : "readonly"} 
+        ${type === "checkbox" ? (value ? "checked" : "") : ""} ${type === "checkbox" ? 'onchange="handleCheck(this)"' : 'oninput="saveLocal()"'}>`;
+
+      row.insertCell(0).innerHTML = createInput("text", data.produk, editable);
+      row.insertCell(1).innerHTML = createInput("text", data.batch, editable);
+      row.insertCell(2).innerHTML = `
+        <select ${editable ? 'onchange="saveLocal()"' : "disabled"}>
+          <option value="">-- Pilih Mesin --</option>
+          <option value="Kilian" ${data.mesin === "Kilian" ? "selected" : ""}>Kilian</option>
+          <option value="Cadpress" ${data.mesin === "Cadpress" ? "selected" : ""}>Cadpress</option>
+          <option value="Cadmach 1" ${data.mesin === "Cadmach 1" ? "selected" : ""}>Cadmach 1</option>
+          <option value="Cadmach 3" ${data.mesin === "Cadmach 3" ? "selected" : ""}>Cadmach 3</option>
+          <option value="PTK 3000" ${data.mesin === "PTK 3000" ? "selected" : ""}>PTK 3000</option>
+          <option value="Rimex" ${data.mesin === "Rimex" ? "selected" : ""}>Rimex</option>
+          <option value="Gylongli" ${data.mesin === "Gylongli" ? "selected" : ""}>Gylongli</option>
+        </select>`;
+      row.insertCell(3).innerHTML = createInput("date", data.tglPakai, editable);
+      row.insertCell(4).innerHTML = createInput("date", data.tglKembali, editable);
+      row.insertCell(5).innerHTML = createInput("checkbox", data.acc, editable);
+      row.insertCell(6).innerHTML = `<button onclick="toggleEdit(this)">Edit</button> <button onclick="deleteRow(this)">Hapus</button>`;
+    }
+
+    async function manualSave() {
+      const bulan = monthSelect.value;
+      const filename = `${bulan}.json`;
+      const url = `https://api.github.com/repos/${github.username}/${github.repo}/contents/${github.path}/${filename}`;
+
+      const data = [];
+      for (let row of tableBody.rows) {
+        const [produk, batch, mesin, tglPakai, tglKembali, acc] = [
+          row.cells[0].querySelector('input')?.value || "",
+          row.cells[1].querySelector('input')?.value || "",
+          row.cells[2].querySelector('select')?.value || "",
+          row.cells[3].querySelector('input')?.value || "",
+          row.cells[4].querySelector('input')?.value || "",
+          row.cells[5].querySelector('input')?.checked || false
+        ];
+        data.push({ produk, batch, mesin, tglPakai, tglKembali, acc });
+      }
+
+      let sha = "";
+      const getRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${github.token}` }
+      });
+      if (getRes.ok) {
+        const json = await getRes.json();
+        sha = json.sha;
+      }
+
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${github.token}`,
+          Accept: "application/vnd.github.v3+json"
+        },
+        body: JSON.stringify({
+          message: `Update logbook bulan ${bulan}`,
+          content: btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2)))),
+          branch: github.branch,
+          sha: sha
+        })
+      });
+
+      notif.innerText = res.ok ? "✔️ Data berhasil disimpan ke GitHub!" : "❌ Gagal simpan ke GitHub!";
+    }
+
+    function deleteRow(btn) {
+      const pass = prompt("Masukkan password untuk hapus baris:");
+      if (pass === PASSWORD) {
+        btn.closest("tr").remove();
+        notif.innerText = "✔️ Baris dihapus.";
+      } else {
+        alert("❌ Password salah. Tidak dihapus.");
+      }
+    }
+
+    function toggleEdit(btn) {
+      const row = btn.closest("tr");
+      const inputs = row.querySelectorAll("input, select");
+      const isEdit = btn.innerText === "Edit";
+      inputs.forEach(el => el.disabled = !isEdit);
+      btn.innerText = isEdit ? "Simpan" : "Edit";
+    }
+
+    function addRow() { insertRow({}, true); }
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const data = [];
+      for (let row of tableBody.rows) {
+        data.push([
+          row.cells[0].querySelector('input')?.value || "",
+          row.cells[1].querySelector('input')?.value || "",
+          row.cells[2].querySelector('select')?.value || "",
+          row.cells[3].querySelector('input')?.value || "",
+          row.cells[4].querySelector('input')?.value || "",
+          row.cells[5].querySelector('input')?.checked ? "✓" : ""
+        ]);
+      }
+      doc.text("LOGBOOK PEMAKAIAN PUNCH DAN DIES", 15, 10);
+      doc.autoTable({
+        head: [["Produk", "Batch", "Mesin", "Tanggal Pakai", "Tanggal Kembali", "ACC"]],
+        body: data,
+        startY: 20
+      });
+      doc.save(`Logbook_${monthSelect.value}.pdf`);
+    }
+
+    window.onload = showSection;
+  </script>
+</body>
+</html>
